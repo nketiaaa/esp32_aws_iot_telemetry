@@ -1,0 +1,141 @@
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+
+// Wi-Fi credentials
+const char* ssid = "nketiaaa";
+const char* password = "password";
+
+// AWS IoT Endpoint 
+const char* AWS_IOT_ENDPOINT = "874841217409-ats.iot.eu-north-1.amazonaws.com";
+
+// Topic
+const char* AWS_IOT_TOPIC = "esp32/resistance_measurement";
+
+// Root CA Certificate (Amazon Root CA 1)
+const char* CACERT = 
+"-----BEGIN CERTIFICATE-----\n" \
+"MIIDQTCCAimgAwIBAgITBmyfz5m/jAo54vB4ikPmljZbyjANBgkqhkiG9w0BAQsF\n" \
+"ADA5MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRkwFwYDVQQDExBBbWF6\n" \
+"b24gUm9vdCBDQSAxMB4XDTE1MDUyNjAwMDAwMFoXDTM4MDExNzAwMDAwMFowOTEL\n" \
+"MAkGA1UEBhMCVVMxDzANBgNVBAoTBkFtYXozEZMBcGA1UEAxMQQW1hem9uIFJv\n" \
+"b3QgQ0EgMTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALJ4gHHKeNXj\n" \
+"ca9HgFB0fW7Y14h29Jlo91ghYPl0hAEvrAIthtOgQ3pOsqTQNroBvo3bSMgHFzZM\n" \
+"9O6II8c+6zf1tRn4SWiw3te5djgdYZ6k/oI2peVKVuRF4fn9tBb6dNqcmzU5L/qw\n" \
+"IFAGbHrQgLKm+a/sRxmPUDgH3KKHOVj4utWp+UhnMJbulHheb4mjUcAwhmahRWa6\n" \
+"VOujw5H5SNz/0egwLX0tdHA114gk957EWW67c4cX8jJGKLhD+rcdqsq08p8kDi1L\n" \
+"93FcXmn/6pUCyziKrlA4b9v7LWIbxcceVOF34GfID5yHI9Y/QCB/IIDEgEw+OyQm\n" \
+"jgSubJrIqg0CAwEAAaNCMEAwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMC\n" \
+"AYYwHQYDVR0OBBYEFIQYzIU07LwMlJQuCFmcx7IQTgoIMA0GCSqGSIb3DQEBCwUA\n" \
+"A4IBAQCY8jdaQZChGsV2USggNiMOruYou6r4lK5IpDB/G/wkjUu0yKGX9rbxenDI\n" \
+"U5PMCCjjmCXPI6T53iHTfIUJrU6adTrCC2qJeHZERxhlbI1Bjjt/msv0tadQ1wUs\n" \
+"N+gDS63pYaACbvXy8MWy7Vu33PqUXHeeE6V/Uq2V8viTO96LXFvKWlJbYK8U90vv\n" \
+"o/ufQJVtMVT8QtPHRh8jrdkPSHCa2XV4cdFyQzR1bldZwgJcJmApzyMZFo6IQ6XU\n" \
+"5MsI+yMRQ+hDKXJioaldXgjUkK642M4UwtBV8ob2xJNDd2ZhwLnoQdeXeGADbkpy\n" \
+"rqXRfboQnoZsG4q5WTP468SQvvG5\n" \
+"-----END CERTIFICATE-----\n";
+
+// Device Certificate (.pem.crt)
+const char* CERTIFICATE = 
+"-----BEGIN CERTIFICATE-----\n" \
+"MIIDWTCCAkGgAwIBAgIUWcDAxJ1jTC0tvqr031OHJ7B8PnMwDQYJKoZIhvcNAQEL\n" \
+"BQAwTTFLMEkGA1UECwxCQW1hem9uIFdlYiBTZXJ2aWNlcyBPPUFtYXpvbi5jb20g\n" \
+"SW5jLiBMPVNlYXR0bGUgU1Q9V2FzaGluZ3RvbiBDPVVTMB4XDTI2MTAxNTIzMTAy\n" \
+"NloXDTQ5MTIzMTIzNTk1OVowHjEcMBoGA1UEAwwTQVdTIElvVCBDZXJ0aWZpY2F0\n" \
+"ZTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBALS4tNDT/SZQ7uR4ru5n\n" \
+"3QcYvrL+CA+mMQbOtXZsalW2UwUNRlv2mDks8NB96Cgvzdced5XIhaahZLaEzsFO\n" \
+"Kz1lUMn3W2RagJJO2PAcT7F9hYjSIivu0d41irVHggtjVwhYSln6zZK4kqAm0F8Z\n" \
+"rNq3kwT+Pz/B+j8hpgAvvRfe6AR3+AfUDi3BU9XlakjWnf+puRsaxbsHwWgjVfKm\n" \
+"qY9K8x3i2Z1zhJ/buLDqjOyK4NyvWczdvDz1PT7+ZuYxIszOSvu+OSHYi0xprkIg\n" \
+"t2p1kqp+zNeKCLO+b6JVulVF3j2iy+JLZj29pFeGukB8ZZ4NsgUgFdEd3hC0pKPi\n" \
+"kscCAwEAAaNgMF4wHwYDVR0jBBgwFoAU7Y7r7OUNgm80y3zQq75jMdOv63wwHQYD\n" \
+"VR0OBBYEFL962Eus+Mv6EIdDt02ZWK8KSN1vMAwGA1UdEwEB/wQCMAAwDgYDVR0P\n" \
+"AQH/BAQDAgeAMA0GCSqGSIb3DQEBCwUAA4IBAQCq5rPJDWrWb2j0dnJzS8QFHA2S\n" \
+"5+rCRVCAzi6salbS330rRNVYPAVkvqIvLbIXzhZqkolxrIgze0EXtNEVeiVoFa08\n" \
+"b8iW3oy6h2CurH/KXOL+Xwr3HPbGKzM1Yxbo9wbQ4qU6xzF5UteTYy+ewo23riIS\n" \
+"D6bLWfzFc/Ni4i3l5SU3vLWULMXpympPl+DWmId2KcNKWpXepYyDXCvAwGl0regP\n" \
+"AEs+QxHpZBNBpgTuUDS2LaLGYmM0WyX9v91gh9aPrwWJstIGxJNDdu2i3xt+XCdO\n" \
+"Wh+9EiVDcPoCbai2z8pQzguYGF/Igl8l7f+tT6+XWqonkI/18pIUtzus2wqC\n" \
+"-----END CERTIFICATE-----\n";
+
+// Private Key (.pem.key)
+const char* PRIVATE_KEY = 
+"-----BEGIN RSA PRIVATE KEY-----\n" \
+"MIIEpAIBAAKCAQEAtLi00NP9JlDu5Hiu7mfdBxi+sv4ID6YxBs61dmxqVbZTBQ1G\n" \
+"W/aYOSzw0H3oKC/N1x53lciFpqFktoTOwU4rPWVQyfdbZFqAkk7Y8BxPsX2FiNIi\n" \
+"K+7R3jWKtUeCC2NXCFhKWfrNkriSoCbQXxms2reTBP4/P8H6PyGmAC+9F97oBHf4\n" \
+"B9QOLcFT1eVqSNad/6m5GxrFuwfBaCNV8qapj0rzHeLZnXOEn9u4sOqM7Irg3K9Z\n" \
+"zN28PPU9Pv5m5jEizM5K+745IdiLTGmuQiC3anWSqn7M14oIs75volW6VUXePaLL\n" \
+"4ktmPb2kV4a6QHxlng2yBSAV0R3eELSko+KSxwIDAQABAoIBAG+ygb9YZuyZtS1t\n" \
+"EeG0PD44oxUKQX06oK6ucCXDmG1lhSZoMAaDAU7FYgna5/R+p2DAKfVfvIti0Val\n" \
+"+wwq/jqyNh6+TbRW44SKSzcMqIzxIemQxyIUN4551UN58PyM56v2te2rQAfhIG7v\n" \
+"znYY7mc4cxvw8LK9d6gxaeJPnzXyu9kTUE9lKDnIv53IDqW/ig15FfajwceqfEfc\n" \
+"TWyu8fl2JnH0uHXwxhTxB0YnWbm/xHXQdR82jVFi+JPZFiUwtC8O+K5hUCMH2CNW\n" \
+"s6bak1cWMAMZy5tuGFIVT2RZnpNJh61sOAyAwsrfSPOrgPYl1ZYQeFjvNoQ6Ho71\n" \
+"k2UgXhECgYEA2a7VaqLsVLrjgrp6BigU2LpVpQnFsluQNCXTarbF0+Ob65023PPm\n" \
+"lfoUA20r7b/FLrTJHRoxXFf2072tqFrtTdNIPn6nv4PMRQJTktHyRO2vIIh/drbf\n" \
+"N3DmoTpvEF4OtP/l9A1Oys5Qso7OrlLmWE181MKC+WEyet0+XHgaNGUCgYEA1IhT\n" \
+"u4arlc9vua6AdZ+CvFPu5d6vaW4tq7T0SFwlZy5RgXqcHvnboR1v26Uobs6Rms/u\n" \
+"W9hhfcNx9J3vSgaaCphz9mKbWDUY6EPMhduopodiGgxljW7V5X8tMYgdQCzIl47W\n" \
+"VDGB1psb+Rv59fL6erPqrqjwKPeRrPy0SsH/ybsCgYEA2Sy8by8saTwrT3mL1CiY\n" \
+"48DDQWyGeHMxY1V5n7XJmKQ0ItUurzIGkwp0fRamBQSWTQrAuvAu3tpDvuw2HQja\n" \
+"SBLKuM7TvRZY7WBs0MX01x/q4KJNyLqZ6E4TSjdqJwIv2hST7vB3843ypLIlMXYz\n" \
+"qVVlfT6yPOrj2gBw/wAz5KECgYEAhjZY+jE/JenLGizyflTu0FMIqC0KBMBJIwew\n" \
+"xAk8rX34hpWRBZavdX0LaF9RuzfDh0oLsgBhAHRuABXESLEGke5YPJ1kkD1nrzUx\n" \
+"cM6YICGad+ygLMJzXOwE9CSKpD4jpmHTQ3PIFGf7MELUhNaeCuKXLxkMIDLG0cD7\n" \
+"ccI074UCgYACnEE5S4Y2PhYNv5cy8QunWIDCdFV3/ivMfmD1bDYltTV9WMxJBqIx\n" \
+"s5UZWZ3xPNcs/G95NCsSJ3spnWv7KKGSXQVY90wTRS6QZn7FxX2Ow0vv35J/wXQZ\n" \
+"W7PGc25QFiNhEKqAn5gQwY4OSvpXiApnVB6kZqanSwSGQ7uESzJYcw==\n" \
+"-----END RSA PRIVATE KEY-----\n";
+
+const int adcPin = 34; // ESP32 ADC pin
+const float R1 = 10000.0; // Known resistor value in Ohms (10k ohms)
+
+WiFiClientSecure net;
+PubSubClient client(net);
+
+void connectAWS() {
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  
+  net.setCACert(CACERT);
+  net.setCertificate(CERTIFICATE);
+  net.setPrivateKey(PRIVATE_KEY);
+
+  client.setServer(AWS_IOT_ENDPOINT, 8883);
+  while (!client.connect("ESP32ResistanceClient")) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nConnected to AWS IoT!");
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(adcPin, INPUT);
+  connectAWS();
+}
+
+void loop() {
+  if (!client.connected()) {
+    connectAWS();
+  }
+  client.loop();
+
+  int rawValue = analogRead(adcPin);
+  float vOut = (rawValue / 4095.0) * 3.3;
+  
+  float r2 = 0;
+  if (3.3 - vOut > 0.01) {
+    r2 = R1 * (vOut / (3.3 - vOut));
+  }
+
+  String payload = "{\"timestamp\": \"" + String(millis()) + "\", \"v_out\": " + String(vOut) + ", \"calculated_resistance_ohms\": " + String(r2) + "}";
+  client.publish("device/esp32/resistance", payload.c_str());
+  
+  delay(5000);
+}
+
