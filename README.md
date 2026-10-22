@@ -2,12 +2,14 @@ Lab 1: Basic Telemetry Data Collection with ESP32 and AWS IoT Core
 Overview
 This lab establishes the foundational connection between an ESP32 microcontroller and AWS IoT Core. It demonstrates how to securely connect to Wi-Fi, using X.509 certificates via mutual TLS and publish basic JSON telemetry data to the AWS cloud.
 
+---
 
 Hardware Requirements
 Microcontroller: ESP32 Development Board
 Connectivity: Wi-Fi Network (or Smartphone Hotspot)
 Development Environment: Arduino IDE with ESP32 board support
 
+---
 
 Software & Libraries
 
